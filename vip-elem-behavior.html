@@ -1,0 +1,306 @@
+<!--
+Copyright (c) 2016 The Ayla Project Authors.
+This code may only be used under the MIT style license found at http://aylaweb.github.io/LICENSE.txt
+The complete set of authors may be found at http://aylaweb.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://aylaweb.github.io/CONTRIBUTORS.txt
+-->
+
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../libs-html/lodash.html">
+
+<script>
+    Ayla = window.Ayla || {};
+    Ayla.VipElemBehavior = {
+        properties: {
+            custom: {
+                type: Boolean,
+                value: true,
+                reflectToAttribute: true
+            },
+            scene: {
+                type: Boolean,
+                notify: true
+            },
+            overlay: {
+                type: Boolean,
+                value: false,
+                notify: true
+            },
+            appId: {
+                type: String,
+                notify: true
+            },
+            childComponents: {
+                type: Array,
+                observer: '_childComponentsChanged'
+            },
+            classes: {
+                type: Array,
+                observer: '_classesChanged'
+            },
+            extraProperties: {
+                type: Object,
+                observer: '_extraPropertiesChanged',
+                value: function () {
+                    return {};
+                }
+            }
+        },
+        listeners: {
+            'dragstart': '_ondragstartHandler'
+        },
+        created: function () {
+
+        },
+        attributeChanged: function (attr, old, val) {
+        },
+        ready: function () {
+            console.log(this.id + " -> " + this.localName + " -> vip-elem -> Event ready");
+            this.async(function () {
+                this.fire('attached-' + this.id, {});
+            });
+            this.async(this.injectMyself.bind(this));
+        },
+        injectMyself: function () {
+            this.myCursor = Ayla.ElemRep.find({id: this.id});
+            var doc = this.myCursor.fetch()[0];
+            for (var prop in doc)
+            {
+                this[prop] = doc[prop];
+            }
+
+            this.myCursor.observeChanges({
+                changed: function (id, fields) {
+                    for (var prop in fields)
+                    {
+
+                        this[prop] = fields[prop];
+                    }
+                }.bind(this),
+                removed: function (id) {
+                    this.detach();
+                }.bind(this)
+            });
+
+
+            /*   var changed = function (id, fields)
+             
+             this.myCursor.observeChanges({
+             changed: function (id, fields) {
+             for (var prop in fields)
+             {
+             this[prop] = fields[prop];
+             }
+             }.bind(this),
+             removed: function (id) {
+             this.detach();
+             }.bind(this)
+             }); */
+
+        },
+        /*   appendWhenReady: function (elem, childNames)
+         {
+         Bacon.fromEvent(document, 'elemready' + this.appId)
+         .filter(function (e) {
+         return (childNames.indexOf(e.detail.id) >= 0);
+         })
+         .onValue(function (e)
+         {
+         var child = Polymer.dom(document).querySelector('#' + e.detail.id);
+         var index = childNames.indexOf(e.detail.id) + 1;
+         var refNode = null;
+         var found = false;
+         while (!found && (index < childNames.length)) {
+         if (refNode = Polymer.dom(elem).querySelector('#' + childNames[index]))
+         {
+         Polymer.dom(elem).insertBefore(child, refNode);
+         found = true;
+         }
+         index++;
+         }
+         if (!found)
+         Polymer.dom(elem).appendChild(child);
+         });
+         }, */
+        attached: function () {
+            console.log(this.id + " -> " + this.localName + " -> vip-elem -> Event attached");
+            this.fire('attached-' + this.id, {});
+
+        },
+        detached: function () {
+            console.log(this.id + " -> " + this.localName + " -> vip-elem -> Event detached");
+            this.fire('detached-element', {id: this.id});
+        },
+        unhide: function (e) {
+            this.hidden = false;
+        },
+        trigger: function (eventType, detail) {
+            this.fire(eventType, detail);
+        },
+        setProperty: function (properties, sourceElem, sourceProp) {
+            for (var key in properties) {
+                if ((properties.hasOwnProperty(key)) && properties[key] && (properties[key].constructor !== Object) && (key !== 'id') && (key !== 'action')) {
+                    this[key] = properties[key];
+                }
+                else if (properties[key] === true && this[key].length === 0) {
+                    properties[key].indexSplices[0].object.forEach(function (elem) {
+                        this.push(key, elem);
+                    }, this);
+                }
+                else if (!properties[key] || _.isNull(properties[key].indexSplices)) {
+                    this[key] = [];
+                    if (Polymer.dom(document).querySelector('#' + sourceElem)[sourceProp]) {
+                        Polymer.dom(document).querySelector('#' + sourceElem)[sourceProp].forEach(function (elem) {
+                            this.push(key, elem);
+                        }, this);
+                    }
+                }
+                else if (properties[key].indexSplices) {
+                    if (properties[key].indexSplices[0].addedCount > 0) {
+                        var args = [key, properties[key].indexSplices[0].index, properties[key].indexSplices[0].addedCount].concat(properties[key].indexSplices[0].object.slice(properties[key].indexSplices[0].index, properties[key].indexSplices[0].index + properties[key].indexSplices[0].addedCount));
+                        this.splice.apply(this, args);
+                        //this.splice(key, 0, 0, properties[key].indexSplices[0].object[0])
+                    }
+                    else {
+                        if (properties[key].indexSplices[0].removed.length > 0)
+                        {
+                            this.splice(key, properties[key].indexSplices[0].index, properties[key].indexSplices[0].removed.length)
+                        }
+                    }
+                }
+            }
+        },
+        toggleValue: function (e) {
+            this.e = !this.e;
+        },
+        // Action that adds the component to the page
+        onscene: function (e) {
+            this.scene = true;
+        },
+        // Action removes the component from the page
+        offscene: function (e) {
+            this.scene = false;
+        },
+        /*   sceneChanged: function (val) {
+         if (val) {
+         this.animate([
+         {opacity: "0.0"},
+         {opacity: "1.0"}
+         ],
+         {
+         duration: 300
+         });
+         this.style.opacity = 1.0;
+         }
+         else {
+         this.animate([
+         {opacity: "1.0"},
+         {opacity: "0.0"}
+         ],
+         {
+         duration: 300
+         });
+         this.style.opacity = 0.0;
+         }
+         }, */
+        _ondragstartHandler: function (e) {
+            e.dataTransfer.setData("text", e.target.id);
+        },
+        // Action that toggles the entry state in the page for the component
+        togglescene: function (e)
+        {
+            //  console.log("evento togglescene" + e);
+            this.scene = !this.scene;
+        },
+        hide: function (e) {
+            this.hidden = true;
+        },
+        // 
+
+        togglehidden: function (e) {
+            // console.log("evento togglehidden" + e);
+            this.hidden = !this.hidden;
+        },
+        openoverlay: function (e) {
+            this.overlay = true;
+        },
+        closeoverlay: function (e) {
+            this.overlay = false;
+        },
+        toggleoverlay: function (e) {
+            this.overlay = !this.overlay;
+        },
+        linkto: function (e) {
+            console.log("evento link" + e);
+            window.open('http://www.elpais.es', '_blank');
+        },
+        overlayChanged: function (val) {
+            var overlay = this.$["overlay_" + this.id];
+            if (overlay) {
+                if (val) {
+                    this.scene = true;
+                    overlay.open();
+                }
+                else {
+                    this.scene = false;
+                    overlay.close();
+                }
+            }
+        },
+        hiddenChanged: function (val) {
+        },
+        nothiddenChanged: function (val) {
+            if (val)
+                this.hidden = false;
+            else
+                this.hidden = true
+        },
+        _childComponentsChanged: function (val, old) {
+            val.forEach(function (e, index, array) {
+                // Reads the html and creates nodes
+                if (e.substring(0, 1) == "<")
+                {
+                    var wrapper = document.createElement('div');
+                    wrapper.innerHTML = e;
+                    if (!wrapper.firstChild.id)
+                        wrapper.firstChild.id = this.id + "_" + index;
+                    Polymer.dom(this).appendChild(wrapper.firstChild);
+                    Polymer.dom.flush();
+                    //return (this.id + "_" + index);
+                }
+                else {
+                    //return e;
+                }
+            }, this);
+            // this.appendWhenReady(this, this.childComponents);
+        },
+        _classesChanged: function (val, old) {
+            val.forEach(function (c) {
+                this.classList.add(c);
+            }, this);
+        },
+        _attribsChanged: function (val, old) {
+            for (var attrib in val) {
+                var attribVar = (val[attrib] === true) ? '' : this.attribs[attrib];
+                this.setAttribute(attrib, attribVar);
+            }
+        },
+        _extraPropertiesChanged: function (val, old) {
+            for (var property in val) {
+                this['_trackerDep_' + property] = new Tracker.Dependency;
+                this._addPropertyEffect(property, 'notify', {event: Polymer.CaseMap.camelToDashCase(property) + '-changed'});
+                Polymer.Bind._createAccessors(this, property, this._propertyEffects[property]);
+                this.addEventListener(Polymer.CaseMap.camelToDashCase(property) + '-changed', function () {
+                    if (this['_trackerDep_' + property])
+                    {
+                        this['_trackerDep_' + property].changed();
+                    }
+                    //   if (this.mux)
+                    //      this.fire(this.mux + prop, )
+                });
+                this[property] = val[property];
+
+            }
+        }
+    };
+</script>
